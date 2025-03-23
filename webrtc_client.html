@@ -2,399 +2,171 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>WebRTC + Google Sheets (Token Automático)</title>
+  <title>WebRTC Simples - Texto + Compartilhamento de Tela</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #chatLog { width: 100%; height: 200px; margin-top: 10px; }
+    video { width: 500px; border: 1px solid #333; margin-top: 10px; }
+    textarea, input, button { margin-top: 5px; }
+  </style>
 </head>
-<body onload="initApp()">
-  <h2>WebRTC + Google Sheets + ICE Completo + Token Automático</h2>
+<body>
+  <h2>WebRTC Simples - Texto + Compartilhamento de Tela</h2>
 
-  <button id="loginBtn" onclick="handleAuthClick()">🔐 Login com Google</button>
-  <button onclick="handleSignOutClick()">🚪 Logout</button>
+  <button onclick="startAsCaller()">Iniciar como Chamador</button>
+  <button onclick="startAsCallee()">Iniciar como Receptor</button>
 
-  <div id="servidorArea" style="display:none;">
-    <h3>Servidor criado!</h3>
-    <p>Código da sala: <strong id="codigoServidor"></strong></p>
-    <div id="statusServidor">Aguardando cliente...</div>
-  </div>
-
-  <div id="clienteArea">
-    <h3>Entrar como Cliente</h3>
-    <input id="codigoCliente" placeholder="Digite o código de 4 letras">
-    <button onclick="entrarComoCliente()">Entrar</button>
-    <div id="statusCliente"></div>
+  <div>
+    <h3>Trocar SDP Manualmente</h3>
+    <label for="localSDP">SDP Local:</label><br>
+    <textarea id="localSDP" cols="60" rows="6" readonly></textarea><br>
+    <label for="remoteSDP">Cole o SDP Remoto:</label><br>
+    <textarea id="remoteSDP" cols="60" rows="6"></textarea><br>
+    <button onclick="setRemoteSDP()">Definir SDP Remoto</button>
   </div>
 
   <h3>Chat</h3>
-  <textarea id="chatLog" cols="50" rows="10" readonly></textarea><br>
-  <input id="mensagem" placeholder="Digite sua mensagem">
-  <button onclick="enviarMensagem()">Enviar</button>
+  <textarea id="chatLog" readonly></textarea><br>
+  <input type="text" id="mensagem" placeholder="Digite uma mensagem">
+  <button onclick="enviarMensagem()">Enviar Mensagem</button>
 
-  <!-- Google APIs -->
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <h3>Compartilhar Tela</h3>
+  <button onclick="compartilharTela()">Compartilhar Minha Tela</button>
 
-  <script>
-    const CLIENT_ID = '746398410753-frgmr1vva6sncpeg1q08am6mjp0csvh5.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-    const sheetId = '1maMNlXrKpPKT2z1jDNXqXWGGRjeeX4LFIyUSrcoIt_o';
-    const planilha = 'Sheet1';
+  <h3>Tela Recebida</h3>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-    let connection;
-    let dataChannel;
-    let tokenClient;
+<script>
+let connection;
+let dataChannel;
+let screenStream;
+let remoteStream;
 
-    function initApp() {
-      gapi.load('client', initializeGapiClient);
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '', // será atribuído no login
-      });
-    }
+async function startAsCaller() {
+  connection = new RTCPeerConnection();
+  remoteStream = new MediaStream();
+  document.getElementById("remoteVideo").srcObject = remoteStream;
 
-    async function initializeGapiClient() {
-      await gapi.client.init({});
-      console.log("✅ GAPI Client inicializado");
-    }
+  dataChannel = connection.createDataChannel("chat");
+  setupDataChannel();
 
-    async function handleAuthClick() {
-      if (!tokenClient) {
-        alert('O Google Identity Services não foi carregado!');
-        return;
-      }
+  connection.onicecandidate = () => atualizarLocalSDP();
 
-      tokenClient.callback = async (resp) => {
-        if (resp.error) {
-          console.error(resp);
-          alert("Erro no login!");
-          return;
-        }
+  connection.ontrack = event => {
+    log("Recebendo stream de vídeo...");
+    remoteStream.addTrack(event.track);
+  };
 
-        const accessToken = resp.access_token;
-        gapi.client.setToken({ access_token: accessToken });
-        sessionStorage.setItem("oauth_token", accessToken);
+  const offer = await connection.createOffer();
+  await connection.setLocalDescription(offer);
 
-        console.log('✅ Token salvo:', accessToken);
+  log("Offer inicial criado! Copie o SDP local e envie ao receptor.");
+}
 
-        alert("✅ Login realizado com sucesso!");
-        iniciarComoServidorOuCliente();
-      };
+async function startAsCallee() {
+  connection = new RTCPeerConnection();
+  remoteStream = new MediaStream();
+  document.getElementById("remoteVideo").srcObject = remoteStream;
 
-      tokenClient.requestAccessToken({ prompt: '' });
-    }
+  connection.ondatachannel = event => {
+    dataChannel = event.channel;
+    setupDataChannel();
+  };
 
-    function handleSignOutClick() {
-      const token = gapi.client.getToken();
-      if (token !== null) {
-        google.accounts.oauth2.revoke(token.access_token);
-        gapi.client.setToken('');
-        sessionStorage.removeItem("oauth_token");
-        alert('Deslogado com sucesso!');
-      }
-    }
+  connection.onicecandidate = () => atualizarLocalSDP();
 
-    async function getOAuthToken() {
-      let token = sessionStorage.getItem("oauth_token");
+  connection.ontrack = event => {
+    log("Recebendo stream de vídeo...");
+    remoteStream.addTrack(event.track);
+  };
 
-      if (!token) {
-        console.warn("🔄 Nenhum token encontrado. Solicitando novo...");
-        await new Promise(resolve => {
-          tokenClient.callback = async (resp) => {
-            if (resp.error) {
-              console.error("Erro ao renovar token:", resp);
-              return;
-            }
-            token = resp.access_token;
-            gapi.client.setToken({ access_token: token });
-            sessionStorage.setItem("oauth_token", token);
-            console.log("🔄 Novo token recebido e salvo.");
-            resolve();
-          };
-          tokenClient.requestAccessToken({ prompt: '' });
-        });
-      }
+  log("Aguardando SDP remoto (offer) para responder com o answer.");
+}
 
-      return token;
-    }
+async function setRemoteSDP() {
+  const remoteSDP = JSON.parse(document.getElementById("remoteSDP").value);
+  await connection.setRemoteDescription(new RTCSessionDescription(remoteSDP));
 
-    async function iniciarComoServidorOuCliente() {
-      const codigosExistentes = await buscarCodigosExistentes();
-      if (!codigosExistentes || codigosExistentes.length === 0) {
-        criarServidor();
-      }
-    }
+  if (remoteSDP.type === "offer") {
+    const answer = await connection.createAnswer();
+    await connection.setLocalDescription(answer);
+    await esperarIceGatheringCompleto();
 
-    async function criarServidor() {
-      connection = new RTCPeerConnection();
+    atualizarLocalSDP();
 
-      connection.oniceconnectionstatechange = () => {
-        console.log('Servidor ICE state:', connection.iceConnectionState);
-      };
+    log("Novo answer criado! Copie e envie ao chamador.");
+  } else {
+    log("Novo SDP remoto aplicado com sucesso.");
+  }
+}
 
-      connection.ondatachannel = (event) => {
-        dataChannel = event.channel;
-        setupDataChannel(dataChannel, "servidor");
-      };
+function setupDataChannel() {
+  dataChannel.onopen = () => log("Canal de dados aberto!");
+  dataChannel.onmessage = event => log("Recebido: " + event.data);
+}
 
-      dataChannel = connection.createDataChannel('chat');
-      setupDataChannel(dataChannel, "servidor");
+function enviarMensagem() {
+  const msg = document.getElementById("mensagem").value;
+  if (dataChannel && dataChannel.readyState === "open") {
+    dataChannel.send(msg);
+    log("Você: " + msg);
+    document.getElementById("mensagem").value = "";
+  } else {
+    alert("Canal não está aberto!");
+  }
+}
 
-      const offer = await connection.createOffer({ iceRestart: false });
-      await connection.setLocalDescription(offer);
+async function compartilharTela() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
-      console.log("⏳ Aguardando ICE gathering no servidor...");
-      await esperarIceGatheringCompleto(connection);
-      console.log("✅ ICE gathering completo no servidor!");
+    screenStream.getTracks().forEach(track => {
+      connection.addTrack(track, screenStream);
+    });
 
-      const codigo = gerarCodigoAleatorio();
-      document.getElementById('codigoServidor').innerText = codigo;
-      document.getElementById('servidorArea').style.display = 'block';
+    log("Tela sendo compartilhada! Gerando novo offer...");
 
-      await criarNovaSalaNaPlanilha(codigo, connection.localDescription);
-      aguardarRespostaCliente(codigo);
-    }
+    const offer = await connection.createOffer();
+    await connection.setLocalDescription(offer);
 
-    async function aguardarRespostaCliente(codigo) {
-      const intervalo = setInterval(async () => {
-        const linha = await buscarLinhaPorCodigo(codigo);
+    await esperarIceGatheringCompleto();
 
-        if (linha && linha[2]) {
-          const answerSDP = JSON.parse(linha[2]);
-          await connection.setRemoteDescription(new RTCSessionDescription(answerSDP));
-          console.log("✅ Resposta do cliente recebida!");
-          clearInterval(intervalo);
-        }
-      }, 2000);
-    }
+    atualizarLocalSDP();
 
-    async function entrarComoCliente() {
-      connection = new RTCPeerConnection();
+    log("Novo offer com tela criado! Copie o SDP e envie ao receptor.");
 
-      connection.oniceconnectionstatechange = () => {
-        console.log('Cliente ICE state:', connection.iceConnectionState);
-      };
+  } catch (err) {
+    console.error("Erro ao compartilhar a tela:", err);
+  }
+}
 
-      connection.ondatachannel = (event) => {
-        dataChannel = event.channel;
-        setupDataChannel(dataChannel, "cliente");
-      };
+function atualizarLocalSDP() {
+  if (connection.localDescription) {
+    document.getElementById("localSDP").value = JSON.stringify(connection.localDescription);
+  }
+}
 
-      const codigo = document.getElementById('codigoCliente').value.trim().toUpperCase();
-      if (!codigo || codigo.length !== 4) {
-        alert("Digite um código válido com 4 letras!");
-        return;
-      }
-
-      const linha = await buscarLinhaPorCodigo(codigo);
-
-      if (!linha || !linha[1]) {
-        alert("Código inválido ou sala não encontrada.");
-        return;
-      }
-
-      const offerSDP = JSON.parse(linha[1]);
-      await connection.setRemoteDescription(new RTCSessionDescription(offerSDP));
-
-      const answer = await connection.createAnswer({ iceRestart: false });
-      await connection.setLocalDescription(answer);
-
-      console.log("⏳ Aguardando ICE gathering no cliente...");
-      await esperarIceGatheringCompleto(connection);
-      console.log("✅ ICE gathering completo no cliente!");
-
-      await atualizarAnswerNaPlanilha(codigo, connection.localDescription);
-    }
-
-    function setupDataChannel(channel, tipo) {
-      channel.onopen = () => {
-        console.log(`🎉 Canal de dados aberto (${tipo})`);
-        document.getElementById(`status${tipo === "servidor" ? "Servidor" : "Cliente"}`).innerText = `✅ Conectado!`;
-      };
-
-      channel.onmessage = (event) => {
-        escreverChat(`${tipo === "servidor" ? "Cliente" : "Servidor"}: ${event.data}`);
-      };
-    }
-
-    async function esperarIceGatheringCompleto(pc) {
-      return new Promise(resolve => {
-        if (pc.iceGatheringState === 'complete') {
+async function esperarIceGatheringCompleto() {
+  return new Promise(resolve => {
+    if (connection.iceGatheringState === "complete") {
+      resolve();
+    } else {
+      const checkState = () => {
+        if (connection.iceGatheringState === "complete") {
+          connection.removeEventListener('icegatheringstatechange', checkState);
           resolve();
-        } else {
-          const checkState = () => {
-            if (pc.iceGatheringState === 'complete') {
-              pc.removeEventListener('icegatheringstatechange', checkState);
-              resolve();
-            }
-          };
-          pc.addEventListener('icegatheringstatechange', checkState);
         }
-      });
+      };
+      connection.addEventListener('icegatheringstatechange', checkState);
     }
+  });
+}
 
-    function enviarMensagem() {
-      const mensagem = document.getElementById('mensagem').value;
-
-      if (dataChannel && dataChannel.readyState === 'open') {
-        dataChannel.send(mensagem);
-        escreverChat("Você: " + mensagem);
-        document.getElementById('mensagem').value = '';
-      } else {
-        alert('❌ O canal ainda não está aberto!');
-      }
-    }
-
-    function escreverChat(mensagem) {
-      const chatLog = document.getElementById('chatLog');
-      chatLog.value += mensagem + '\n';
-    }
-
-    function gerarCodigoAleatorio() {
-      const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-      let codigo = '';
-      for (let i = 0; i < 4; i++) {
-        codigo += letras.charAt(Math.floor(Math.random() * letras.length));
-      }
-      return codigo;
-    }
-
-    async function buscarCodigosExistentes() {
-      try {
-        const accessToken = await getOAuthToken();
-        const response = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${planilha}!A2:A`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error(`Erro: ${response.status} - ${await response.text()}`);
-
-        const data = await response.json();
-        console.log('Códigos existentes:', data.values);
-        return data.values ? data.values.flat() : [];
-
-      } catch (error) {
-        console.error('Erro ao buscar códigos existentes:', error);
-        return [];
-      }
-    }
-
-    async function buscarLinhaPorCodigo(codigo) {
-      try {
-        const accessToken = await getOAuthToken();
-        const response = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${planilha}!A2:C`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error(`Erro: ${response.status} - ${await response.text()}`);
-
-        const data = await response.json();
-        console.log('Linhas encontradas:', data.values);
-
-        if (!data.values) return null;
-
-        for (let linha of data.values) {
-          if (linha[0].trim().toUpperCase() === codigo) {
-            console.log('Código encontrado:', linha);
-            return linha;
-          }
-        }
-
-        return null;
-
-      } catch (error) {
-        console.error('Erro ao buscar linha:', error);
-        return null;
-      }
-    }
-
-    async function criarNovaSalaNaPlanilha(codigo, offerSDP) {
-      try {
-        const accessToken = await getOAuthToken();
-        const valores = [[codigo, JSON.stringify(offerSDP), '']];
-        const body = { values: valores };
-
-        const response = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${planilha}!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-          }
-        );
-
-        if (!response.ok) throw new Error(`Erro: ${response.status} - ${await response.text()}`);
-        console.log("✅ Sala criada com sucesso!");
-
-      } catch (error) {
-        console.error('Erro ao criar sala:', error);
-      }
-    }
-
-    async function atualizarAnswerNaPlanilha(codigo, answerSDP) {
-      try {
-        const accessToken = await getOAuthToken();
-        const response = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${planilha}!A2:C`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error(`Erro: ${response.status} - ${await response.text()}`);
-
-        const data = await response.json();
-        console.log('Linhas para atualização:', data.values);
-
-        if (!data.values) return;
-
-        let linhaIndex = -1;
-        for (let i = 0; i < data.values.length; i++) {
-          if (data.values[i][0] === codigo) {
-            linhaIndex = i;
-            break;
-          }
-        }
-
-        if (linhaIndex === -1) {
-          console.error('Código não encontrado!');
-          return;
-        }
-
-        const updateResponse = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${planilha}!C${linhaIndex + 2}?valueInputOption=RAW`,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              values: [[JSON.stringify(answerSDP)]]
-            })
-          }
-        );
-
-        if (!updateResponse.ok) throw new Error(`Erro: ${updateResponse.status} - ${await updateResponse.text()}`);
-        console.log("✅ Answer atualizado com sucesso!");
-
-      } catch (error) {
-        console.error('Erro ao atualizar Answer SDP:', error);
-      }
-    }
-
-  </script>
+function log(msg) {
+  const chatLog = document.getElementById("chatLog");
+  chatLog.value += msg + "\n";
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+</script>
 </body>
 </html>
