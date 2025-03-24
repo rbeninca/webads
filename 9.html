@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Contador de Cliques</title>
+    <style>
+        /* Centraliza o botão na tela */
+        .centered {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div class="centered">
+        <button id="contador" onclick="incrementar()">0</button>
+    </div>
+
+    <script>
+        function incrementar() {
+            // Lê o valor atual do botão
+            let valor = parseInt(document.getElementById("contador").innerText);
+
+            // Incrementa o valor
+            valor += 1;
+
+            // Atualiza o texto do botão com o novo valor
+            document.getElementById("contador").innerText = valor;
+        }
+    </script>
+
+    <!--
+    Diferenças entre modificar o conteúdo de um campo de entrada e de um botão:
+
+    - Um campo de entrada (input) geralmente usa a propriedade "value" para definir ou obter seu conteúdo. 
+      Já para um botão, podemos usar a propriedade "innerText" ou "textContent" para definir ou obter seu texto.
+
+    - A atualização de um campo de entrada é muitas vezes associada à manipulação direta pelo usuário,
+      enquanto o conteúdo de um botão é mais frequentemente atualizado via script ou em resposta a um evento.
+    -->
+</body>
+</html>

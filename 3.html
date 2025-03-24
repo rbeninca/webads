@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <script>
+        // Solicita ao usuário dois números A e B
+        var A = prompt("Digite o primeiro número (A):");
+        var B = prompt("Digite o segundo número (B):");
+
+        // Converte as entradas de string para número
+        A = parseFloat(A);
+        B = parseFloat(B);
+
+        // Verifica se ambas as entradas são números
+        if (typeof A === "number" && typeof B === "number") {
+            // Calcula a soma
+            var soma = A + B;
+            console.log("A soma de A e B é:", soma);
+        } else {
+            console.log("Ambas as entradas devem ser números.");
+        }
+
+    </script>
+</body>
+
+</html>

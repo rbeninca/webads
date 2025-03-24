@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Tecla Pressionada</title>
+    <style>
+        /* Centraliza a div na tela */
+        .centered {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 24px; /* Ajusta o tamanho da fonte para melhor visibilidade */
+        }
+    </style>
+</head>
+<body>
+    <div class="centered" id="tecla">Pressione uma tecla...</div>
+
+    <script>
+        window.addEventListener("keydown", function(event) {
+            // Obtém a tecla pressionada
+            const tecla = event.key;
+
+            // Atualiza o conteúdo da <div> com a tecla pressionada
+            document.getElementById("tecla").innerText = "Tecla pressionada: " + tecla;
+
+            // Define um timer para limpar a <div> após 3 segundos
+            setTimeout(() => {
+                document.getElementById("tecla").innerText = "";
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

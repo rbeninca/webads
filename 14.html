@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculador</title>
+</head>
+<style>
+    body {
+        height: 100vh;
+        background-color: rgb(109, 139, 167);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .calculadora {
+        height: 70vh;
+        width: 70vh;
+        background-color: rgb(214, 209, 209);
+        border-radius: 20px;
+    }
+
+    #display {
+        border-radius: 20px 20px 0px 0px;
+        background-color: rgb(85, 81, 81);
+        width: 100%;
+        height: 25%;
+        font-size: 30pt;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        color: white;
+
+
+    }
+
+    .button {
+        display: flex;
+        height: 100%;
+        width: 100%;
+        justify-content: center;
+        align-items: center;
+        background-color: aliceblue;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 30pt;
+        border: 1px solid rgb(90, 87, 87);
+
+    }
+
+    #teclado {
+        display: grid;
+        height: 75%;
+        grid-template-columns: 25% 25% 25% 25%;
+        grid-template-rows: 20% 20% 20% 20% 20%;
+        grid-template-areas:
+            "buttonMais buttonMenos buttonMult buttonDiv"
+            "bnt7       bnt8        bnt9       bntequal"
+            "bnt4       bnt5        bnt6       bntequal"
+            "bnt1       bnt2        bnt3       bntequal"
+            "bnt0       bntdot      bntClear   bntequal"
+        ;
+    }
+
+    #bntMais {
+        grid-area: buttonMais;
+    }
+
+    #bntMenos {
+        grid-area: buttonMenos;
+    }
+
+    #bntMenos {
+        grid-area: buttonMult;
+    }
+
+    #bntDiv {
+        grid-area: buttonDiv;
+    }
+
+    #bnt0 {
+        grid-area: bnt0;
+        border-radius: 0px 0px 0px 20px;
+    }
+
+    #bnt1 {
+        grid-area: bnt1;
+    }
+
+    #bnt2 {
+        grid-area: bnt2;
+    }
+
+    #bnt3 {
+        grid-area: bnt3;
+    }
+
+    #bnt4 {
+        grid-area: bnt4;
+    }
+
+    #bnt5 {
+        grid-area: bnt5;
+    }
+
+    #bnt6 {
+        grid-area: bnt6;
+    }
+
+    #bnt7 {
+        grid-area: bnt7;
+    }
+
+    #bnt8 {
+        grid-area: bnt8;
+    }
+
+    #bnt9 {
+        grid-area: bnt9;
+    }
+
+    #bntequal {
+        grid-area: bntequal;
+        background-color: rgba(226, 88, 8, 0.966);
+        border-radius: 0px 0px 20px 0px;
+    }
+
+    #bntdot {
+        grid-area: bntdot;
+    }
+
+    #bntClear {
+        grid-area: bntClear;
+    }
+
+    .button:active,
+    #bntequal:active {
+        background-color: gray;
+
+    }
+</style>
+
+<body>
+    <div class="calculadora">
+        <div id="display"></div>
+        <div id="teclado">
+            <button class="button buttonOp" id="bntMais">+</button>
+            <button class="button buttonOp" id="bntMenos">-</button>
+            <button class="button buttonOp" id="bntMult">*</button>
+            <button class="button buttonOp" id="bntDiv">/</button>
+            <button class="button buttonChar buttonNumber" id="bnt1"  data-key="1">1</button>
+            <button class="button buttonChar buttonNumber" id="bnt2"  data-key="2">2</button>
+            <button class="button buttonChar buttonNumber" id="bnt3"  data-key="3">3</button>
+            <button class="button buttonChar buttonNumber" id="bnt4"  data-key="4">4</button>
+            <button class="button buttonChar buttonNumber" id="bnt5"  data-key="5">5</button>
+            <button class="button buttonChar buttonNumber" id="bnt6"  data-key="6">6</button>
+            <button class="button buttonChar buttonNumber" id="bnt7"  data-key="7">7</button>
+            <button class="button buttonChar buttonNumber" id="bnt8"  data-key="8">8</button>
+            <button class="button buttonChar buttonNumber" id="bnt9"  data-key="9">9</button>
+            <button class="button buttonChar buttonNumber" id="bnt0"  data-key="0">0</button>
+            <button class="button buttonChar " id="bntdot">.</button>
+            <button class="button buttonChar " id="bntClear">C</button>
+            <button class="button equal" id="bntequal">=</button>
+        </div>
+    </div>
+    <script>
+        let display = document.querySelector("#display");
+        let equacao = "0";
+        display.textContent = equacao;
+
+      
+        //adiciona evento de keypress e click para cada botão
+        function handler_input(event) {
+            console.log(evento)
+            if (event.type === 'click') {
+                buttonValue = event.target.innerText;
+            }
+            // Verifica se o evento é de tecla pressionada
+            else if (event.type === 'keypress') {
+                const key = event.key;
+                const button = document.querySelector(`.buttonNumber[data-key="${key}"]`);
+                if (button) {
+                    buttonValue = button.innerText;
+                }
+            }
+          
+        }
+        function filtra_equacao(string: ,){
+            equacao += element.innerHTML;
+            //  trata equação para não deixar zeros a esquerda
+            equacao = equacao.replace(/^0+/, '');
+            //trata equação para não deixar dois operadores juntos, caso tenha mais de um operador seguido, remove todos os operadores e deixa apenas o ultimo
+            //equacao=equacao.replace(/[\+\-\*\/]{2,}/g,'');
+            //trata equação para não deixar dois operadores juntos, caso tenha mais de um operador seguido, remove o ultimo operador
+            equacao = equacao.replace(/[\+\-\*\.\/]{2,}$/, match => match.slice(-1));
+            //trata equação para não deixar operador no final(somente na execução)
+            //equacao=equacao.replace(/$[\+\-\*\/]/,'');
+            display.textContent = equacao
+        }
+        let buttons = document.querySelectorAll(".buttonNumber,#bntdot,  .buttonOp");
+
+        buttons.forEach(element => {
+            element.addEventListener('keypress', handler_input)
+        });
+        buttons.forEach(element => { element.addEventListener('click', handler_input) });
+
+        let bntClear = document.querySelector("#bntClear");
+        bntClear.addEventListener('click', () => {
+            equacao = "0";
+            display.textContent = equacao;
+        })
+        let bntequal = document.querySelector("#bntequal");
+        bntequal.addEventListener('click', () => {
+            display.textContent = eval(equacao);
+        })
+
+
+    </script>
+</body>
+
+</html>

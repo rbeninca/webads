@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Copiador de Texto</title>
+</head>
+<body>
+    <h2>Insira um texto:</h2>
+
+    <label for="inputTexto">Texto:</label>
+    <input type="text" id="inputTexto"><br><br>
+
+    <button onclick="copiarTexto()">Copiar Texto</button>
+
+    <div id="textos">
+        <!-- Os textos copiados aparecerão aqui -->
+    </div>
+
+    <script>
+        function copiarTexto() {
+            // Lê o texto do campo de entrada
+            const texto = document.getElementById("inputTexto").value;
+
+            // Cria um novo parágrafo com o texto
+            const p = document.createElement("p");
+            p.innerText = texto;
+
+            // Adiciona o parágrafo à <div> "textos"
+            document.getElementById("textos").appendChild(p);
+
+            // Limpa o campo de entrada
+            document.getElementById("inputTexto").value = "";
+        }
+    </script>
+</body>
+</html>

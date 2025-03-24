@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Verificador de Par ou Ímpar</title>
+</head>
+<body>
+    <script>
+        // Solicita um número ao usuário
+        let A = prompt("Digite um número:");
+
+        // Converte a entrada de string para número
+        A = parseFloat(A);
+
+        // Verifica se a entrada é um número
+        if (!isNaN(A)) {
+            // Verifica se é par ou ímpar
+            if (A % 2 === 0) {
+                alert("O número " + A + " é par.");
+            } else {
+                alert("O número " + A + " é ímpar.");
+            }
+        } else {
+            alert("A entrada não é um número válido.");
+        }
+    </script>
+</body>
+</html>

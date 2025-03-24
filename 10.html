@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Alterar Cor de Fundo</title>
+    <style>
+        /* Centraliza o botão na tela */
+        .centered {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div class="centered">
+        <button onclick="alterarCor()">Alterar Cor de Fundo</button>
+    </div>
+
+    <script>
+        
+        function alterarCor() {
+            // Gera uma cor aleatória em formato RGB
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+
+            const corAleatoria = `rgb(${r}, ${g}, ${b})`;
+
+            // Altera a cor de fundo do body
+            document.body.style.backgroundColor = corAleatoria;
+        }
+    </script>
+</body>
+</html>
