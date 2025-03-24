@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>WebRTC Simples - Texto + Compartilhamento de Tela</title>
+  <title>WebRTC com Supabase - Multi Peer (Debug)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     #chatLog { width: 100%; height: 200px; margin-top: 10px; }
@@ -11,24 +12,17 @@
   </style>
 </head>
 <body>
-  <h2>WebRTC Simples - Texto + Compartilhamento de Tela</h2>
+  <h2>WebRTC com Supabase - Multi Peer (Debug)</h2>
 
-  <button onclick="startAsCaller()">Iniciar como Chamador</button>
-  <button onclick="startAsCallee()">Iniciar como Receptor</button>
+  <h3>Usuários Disponíveis</h3>
+  <ul id="usuariosDisponiveis"></ul>
 
   <div>
-    <h3>Trocar SDP Manualmente</h3>
-    <label for="localSDP">SDP Local:</label><br>
-    <textarea id="localSDP" cols="60" rows="6" readonly></textarea><br>
-    <label for="remoteSDP">Cole o SDP Remoto:</label><br>
-    <textarea id="remoteSDP" cols="60" rows="6"></textarea><br>
-    <button onclick="setRemoteSDP()">Definir SDP Remoto</button>
+    <h3>Chat</h3>
+    <textarea id="chatLog" readonly></textarea><br>
+    <input type="text" id="mensagem" placeholder="Digite uma mensagem">
+    <button onclick="enviarMensagem()">Enviar Mensagem</button>
   </div>
-
-  <h3>Chat</h3>
-  <textarea id="chatLog" readonly></textarea><br>
-  <input type="text" id="mensagem" placeholder="Digite uma mensagem">
-  <button onclick="enviarMensagem()">Enviar Mensagem</button>
 
   <h3>Compartilhar Tela</h3>
   <button onclick="compartilharTela()">Compartilhar Minha Tela</button>
@@ -37,136 +31,236 @@
   <video id="remoteVideo" autoplay playsinline></video>
 
 <script>
+const SUPABASE_URL = 'https://heooobwioowbnnmkwlzt.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 let connection;
 let dataChannel;
 let screenStream;
 let remoteStream;
+let usuarioId = localStorage.getItem('usuarioId') || crypto.randomUUID();
+localStorage.setItem('usuarioId', usuarioId);
 
-async function startAsCaller() {
-  connection = new RTCPeerConnection();
-  remoteStream = new MediaStream();
-  document.getElementById("remoteVideo").srcObject = remoteStream;
+// Estados para controle de conexão
+let isCalling = false;
+let isAnswering = false;
 
-  dataChannel = connection.createDataChannel("chat");
+async function init() {
+  await registrarUsuario();
+  await ouvirUsuariosDisponiveis();
+  await escutarOfertasRecebidas();
+  console.log("✅ Sistema inicializado e aguardando ações do usuário.");
+}
+
+async function registrarUsuario() {
+  const { data: usuarioExistente } = await supabase
+    .from('usuarios')
+    .select('id')
+    .eq('id', usuarioId)
+    .single();
+
+  if (!usuarioExistente) {
+    await supabase.from('usuarios').insert([{ id: usuarioId, online: true }]);
+    console.log('Usuário criado:', usuarioId);
+  } else {
+    await supabase.from('usuarios').update({ online: true }).eq('id', usuarioId);
+    console.log('Usuário existente atualizado:', usuarioId);
+  }
+}
+
+async function ouvirUsuariosDisponiveis() {
+  atualizarListaUsuarios();
+
+  supabase.channel('usuarios')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, payload => {
+      console.log('Alteração em usuarios:', payload);
+      atualizarListaUsuarios();
+    })
+    .subscribe();
+}
+
+async function atualizarListaUsuarios() {
+  const { data } = await supabase.from('usuarios').select('*').neq('id', usuarioId);
+  const lista = document.getElementById('usuariosDisponiveis');
+  lista.innerHTML = '';
+
+  if (!data || data.length === 0) {
+    console.warn('Nenhum usuário disponível encontrado!');
+  }
+
+  data.forEach(usuario => {
+    const li = document.createElement('li');
+    li.textContent = `Usuário: ${usuario.id}`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Conectar';
+    btn.onclick = () => iniciarChamada(usuario.id);
+    li.appendChild(btn);
+    lista.appendChild(li);
+  });
+}
+
+async function iniciarChamada(destinoId) {
+  if (isCalling || isAnswering) {
+    console.warn('Já em uma chamada ativa. Ignorando nova tentativa.');
+    return;
+  }
+
+  console.log('🔔 Iniciando chamada para:', destinoId);
+  isCalling = true;
+
+  connection = createPeerConnection(destinoId);
+  dataChannel = connection.createDataChannel('chat');
   setupDataChannel();
-
-  connection.onicecandidate = () => atualizarLocalSDP();
-
-  connection.ontrack = event => {
-    log("Recebendo stream de vídeo...");
-    remoteStream.addTrack(event.track);
-  };
 
   const offer = await connection.createOffer();
   await connection.setLocalDescription(offer);
 
-  log("Offer inicial criado! Copie o SDP local e envie ao receptor.");
+  console.log('📨 Offer criada e enviada para:', destinoId);
+
+  await supabase.from('sinalizacao').upsert([{ origem: usuarioId, destino: destinoId, offer: connection.localDescription }]);
+
+  listenForAnswer(destinoId);
+  listenForIceCandidates(destinoId, 'origem');
 }
 
-async function startAsCallee() {
-  connection = new RTCPeerConnection();
-  remoteStream = new MediaStream();
-  document.getElementById("remoteVideo").srcObject = remoteStream;
+async function escutarOfertasRecebidas() {
+  console.log('🕑 Escutando ofertas para:', usuarioId);
 
-  connection.ondatachannel = event => {
+  supabase.channel('sinalizacao')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sinalizacao', filter: `destino=eq.${usuarioId}` }, async payload => {
+      const { offer, origem } = payload.new;
+
+      if (!offer) {
+        console.warn('⚠️ Oferta não encontrada no payload:', payload);
+        return;
+      }
+
+      if (isCalling || isAnswering) {
+        console.warn('Já em uma chamada ativa. Ignorando oferta recebida.');
+        return;
+      }
+
+      console.log('📨 Oferta recebida de:', origem);
+      isAnswering = true;
+
+      connection = createPeerConnection(origem);
+      await connection.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log('✅ Offer aplicada. Criando answer...');
+
+      const answer = await connection.createAnswer();
+      await connection.setLocalDescription(answer);
+      console.log('📤 Answer criada e enviada para:', origem);
+
+      await supabase.from('sinalizacao').update({ answer: connection.localDescription }).eq('origem', origem).eq('destino', usuarioId);
+
+      listenForIceCandidates(origem, 'destino');
+    })
+    .subscribe();
+}
+
+async function listenForAnswer(destinoId) {
+  console.log('🕑 Aguardando resposta (answer) de:', destinoId);
+  supabase.channel('sinalizacao')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sinalizacao', filter: `origem=eq.${usuarioId}` }, async payload => {
+      const answer = payload.new.answer;
+      if (answer) {
+        console.log('📥 Answer recebida! Aplicando...');
+        await connection.setRemoteDescription(new RTCSessionDescription(answer));
+        console.log('✅ Answer aplicada com sucesso.');
+      } else {
+        console.warn('⚠️ Answer vazia no payload:', payload);
+      }
+    })
+    .subscribe();
+}
+
+async function listenForIceCandidates(remoteId, role) {
+  const sala = role === 'origem' ? `${usuarioId}_${remoteId}` : `${remoteId}_${usuarioId}`;
+
+  console.log(`🕑 Escutando ICE candidates para sala ${sala}`);
+
+  supabase.channel('candidatos')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'candidatos', filter: `sala=eq.${sala}` }, payload => {
+      const candidate = payload.new.candidate;
+      console.log('📥 ICE candidate recebido:', candidate);
+
+      if (candidate) {
+        connection.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('✅ ICE candidate adicionado na conexão');
+      }
+    })
+    .subscribe();
+}
+
+function createPeerConnection(remoteId) {
+  console.log('🔧 Criando peer connection com:', remoteId);
+
+  const pc = new RTCPeerConnection();
+  remoteStream = new MediaStream();
+  document.getElementById('remoteVideo').srcObject = remoteStream;
+
+  pc.onicecandidate = event => {
+    if (event.candidate) {
+      const sala = `${usuarioId}_${remoteId}`;
+      console.log('📤 Enviando ICE candidate', event.candidate);
+      supabase.from('candidatos').insert([{ sala, role: 'origem', candidate: event.candidate }]);
+    }
+  };
+
+  pc.ontrack = event => {
+    console.log('🎥 Track recebida:', event.track);
+    remoteStream.addTrack(event.track);
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    console.log('🔄 ICE connection state:', pc.iceConnectionState);
+  };
+
+  pc.ondatachannel = event => {
     dataChannel = event.channel;
     setupDataChannel();
   };
 
-  connection.onicecandidate = () => atualizarLocalSDP();
-
-  connection.ontrack = event => {
-    log("Recebendo stream de vídeo...");
-    remoteStream.addTrack(event.track);
-  };
-
-  log("Aguardando SDP remoto (offer) para responder com o answer.");
-}
-
-async function setRemoteSDP() {
-  const remoteSDP = JSON.parse(document.getElementById("remoteSDP").value);
-  await connection.setRemoteDescription(new RTCSessionDescription(remoteSDP));
-
-  if (remoteSDP.type === "offer") {
-    const answer = await connection.createAnswer();
-    await connection.setLocalDescription(answer);
-    await esperarIceGatheringCompleto();
-
-    atualizarLocalSDP();
-
-    log("Novo answer criado! Copie e envie ao chamador.");
-  } else {
-    log("Novo SDP remoto aplicado com sucesso.");
-  }
+  return pc;
 }
 
 function setupDataChannel() {
-  dataChannel.onopen = () => log("Canal de dados aberto!");
-  dataChannel.onmessage = event => log("Recebido: " + event.data);
+  dataChannel.onopen = () => console.log('✅ Canal de dados aberto!');
+  dataChannel.onmessage = event => {
+    console.log('📨 Mensagem recebida:', event.data);
+    log(`Mensagem recebida: ${event.data}`);
+  };
 }
 
 function enviarMensagem() {
-  const msg = document.getElementById("mensagem").value;
-  if (dataChannel && dataChannel.readyState === "open") {
-    dataChannel.send(msg);
-    log("Você: " + msg);
-    document.getElementById("mensagem").value = "";
+  const mensagem = document.getElementById('mensagem').value;
+  if (dataChannel && dataChannel.readyState === 'open') {
+    console.log('📤 Enviando mensagem:', mensagem);
+    dataChannel.send(mensagem);
+    log(`Você: ${mensagem}`);
   } else {
-    alert("Canal não está aberto!");
+    alert('❌ Canal de dados não está aberto.');
   }
 }
 
 async function compartilharTela() {
   try {
     screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-
-    screenStream.getTracks().forEach(track => {
-      connection.addTrack(track, screenStream);
-    });
-
-    log("Tela sendo compartilhada! Gerando novo offer...");
-
-    const offer = await connection.createOffer();
-    await connection.setLocalDescription(offer);
-
-    await esperarIceGatheringCompleto();
-
-    atualizarLocalSDP();
-
-    log("Novo offer com tela criado! Copie o SDP e envie ao receptor.");
-
+    screenStream.getTracks().forEach(track => connection.addTrack(track, screenStream));
+    console.log('🖥️ Compartilhando tela...');
   } catch (err) {
-    console.error("Erro ao compartilhar a tela:", err);
+    console.error('❌ Erro ao compartilhar a tela:', err);
   }
 }
 
-function atualizarLocalSDP() {
-  if (connection.localDescription) {
-    document.getElementById("localSDP").value = JSON.stringify(connection.localDescription);
-  }
-}
-
-async function esperarIceGatheringCompleto() {
-  return new Promise(resolve => {
-    if (connection.iceGatheringState === "complete") {
-      resolve();
-    } else {
-      const checkState = () => {
-        if (connection.iceGatheringState === "complete") {
-          connection.removeEventListener('icegatheringstatechange', checkState);
-          resolve();
-        }
-      };
-      connection.addEventListener('icegatheringstatechange', checkState);
-    }
-  });
-}
-
-function log(msg) {
-  const chatLog = document.getElementById("chatLog");
-  chatLog.value += msg + "\n";
+function log(mensagem) {
+  const chatLog = document.getElementById('chatLog');
+  chatLog.value += mensagem + '\n';
   chatLog.scrollTop = chatLog.scrollHeight;
 }
+
+init();
 </script>
 </body>
 </html>

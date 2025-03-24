@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebRTC Servidor</title>
+</head>
+<body>
+  <h2>Servidor WebRTC</h2>
+  <textarea id="remoteOffer" cols="50" rows="10" placeholder="Cole aqui a oferta do cliente"></textarea><br>
+  <button onclick="createAnswer()">Criar Resposta</button><br><br>
+
+  <textarea id="localAnswer" cols="50" rows="10" placeholder="Copie essa resposta para o cliente"></textarea><br>
+
+  <div id="status"></div>
+
+  <script>
+    let remoteConnection;
+
+    async function createAnswer() {
+      const offer = document.getElementById('remoteOffer').value;
+      if (!offer) {
+        alert("Cole a oferta do cliente primeiro!");
+        return;
+      }
+
+      remoteConnection = new RTCPeerConnection();
+
+      remoteConnection.ondatachannel = (event) => {
+        const receiveChannel = event.channel;
+
+        receiveChannel.onopen = () => {
+          document.getElementById('status').innerText = 'Canal aberto!';
+        };
+
+        receiveChannel.onmessage = (event) => {
+          console.log("Recebido do cliente:", event.data);
+          document.getElementById('status').innerText = `Recebido: ${event.data}`;
+
+          // Envia uma resposta de volta
+          receiveChannel.send("Mensagem recebida com sucesso!");
+        };
+      };
+
+      const remoteDesc = new RTCSessionDescription(JSON.parse(offer));
+      await remoteConnection.setRemoteDescription(remoteDesc);
+
+      const answer = await remoteConnection.createAnswer();
+      await remoteConnection.setLocalDescription(answer);
+
+      remoteConnection.onicecandidate = (event) => {
+        if (event.candidate === null) {
+          document.getElementById('localAnswer').value = JSON.stringify(remoteConnection.localDescription);
+        }
+      };
+    }
+  </script>
+</body>
+</html>
