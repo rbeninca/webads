@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document</title>
+    <style>
+        span{color:green}
+        .container{
+            display: flex;
+          
+        }
+        .boxa{
+            width: 100px;
+            height: 100px;
+            background-color: red;
+            transition: all 5s ease-in 0s;
+        }
+        .boxa:hover{
+            width: 200px;
+            height: 200px;
+            background-color: green;
+        }
+        .box{
+            width: 50px;
+            height: 50px;
+            position: relative;
+            border: 1px solid black;
+            flex-shrink: 0;
+            animation: rotacao 1s ease-in 0s infinite ;
+        }
+        @keyframes rotacao {
+            0%{
+                transform: rotate(0deg);
+                top:0px;
+            }
+            100%{
+                transform: rotate(360deg);
+                top:150px;
+                border-radius: 50%;
+                
+            }
+        }
+        #box1{background-color: gray;}
+        #box2{background-color: greenyellow;}
+        #box3{background-color: pink;}
+        #box4{background-color: yellow;}
+
+
+    </style>
+</head>
+<body>
+    <h2>transições em css</h2>
+    <p>Serve para definir um temporização para mudanças que podem ocorrer nos elementos html
+    </p>
+    <code>
+        elemento{ <br>
+            transition: <span>propriedade</span> <span>duração</span> 
+            <span>função</span> 
+            <span> delay;</span>
+        }
+    </code>
+    <div class="container">
+        <div class="boxa">boxa</div>
+        <div class="boxa">boxa</div>
+        <div class="boxa">boxa</div>
+        <div class="boxa">boxa</div>
+        <div class="boxa">boxa</div>
+    </div>
+  
+
+    <h2>animações em css</h2>
+    <code>
+        animation: name duration timing-function delay iteration-count direction fill-mode;
+    </code>
+    <div class="container">
+        <div class="box" id="box1">box1</div>
+        <div class="box" id="box2">box2</div>
+        <div class="box" id="box3">box3</div>
+        <div class="box" id="box4">box4</div>
+        <div class="box" id="box5">box5</div>
+    </div>
+
+</body>
+</html>
