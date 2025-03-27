@@ -2,16 +2,7 @@
 <html lang="en">
 <head>
    <style>
-     .container{
-        display: grid;
-        height: 100svh;
-        grid-template-areas:
-        "header  header header header"
-        "main    main  .     sidebar"
-        "footer footer footer footer"
-        ;
-        grid-template-rows: 1fr 5fr 1fr;
-     }
+     
      .box{
         border: 1px solid black;
      }
@@ -43,7 +34,30 @@
         background-color: rgba(20, 100,100, 1);
         margin: 10px;
      }
-
+     @media screen and (min-width:500px) {
+     .container{
+            background-color: black;
+            display: grid;
+            height: 100svh;
+            grid-template-areas:
+            "header  header header header"
+            "main    main  .     sidebar"
+            "footer footer footer footer"
+            ;
+            grid-template-rows: 1fr 5fr 1fr;
+        }
+    }
+     @media screen and (max-width:500px) {
+            .container{
+            display: flex;
+            height: 100svh;
+            flex-direction: column;
+        }
+    }
+  
+      
+        
+     
    </style>
 </head>
 <body>
